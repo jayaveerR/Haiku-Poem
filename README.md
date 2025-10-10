@@ -1,6 +1,6 @@
 # ImageAI - ClipDrop Text-to-Image Generator
 
-A modern web application that generates stunning AI images from text prompts using ClipDrop's Stable Diffusion XL API.
+A modern web application that generates stunning AI images from text prompts using ClipDrop's Stable Diffusion XL API.https://jayaveerr.github.io/Haiku-Poem/
 
 ## Features
 
