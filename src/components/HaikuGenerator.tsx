@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { Feather, Heart, Sparkles, RefreshCw, Copy, Download, Lightbulb, Shuffle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Feather, Heart, Sparkles, RefreshCw, Copy, Download, Lightbulb, Shuffle, Camera } from 'lucide-react';
+import { MdEmojiEmotions } from 'react-icons/md';
 import { HaikuService } from '../services/haikuService';
 import { HaikuArtCard } from './HaikuArtCard';
 import { Haiku } from '../types';
+import EmotionCamera from './EmotionCamera';
 
 interface HaikuGeneratorProps {
   imagePrompt?: string;
@@ -59,15 +61,30 @@ const HAIKU_PROMPTS = [
   "eternal dance of time"
 ];
 
-export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({ 
-  imagePrompt, 
-  onHaikuGenerated 
+export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
+  imagePrompt,
+  onHaikuGenerated
 }) => {
   const [currentHaiku, setCurrentHaiku] = useState<Haiku | null>(null);
   const [selectedEmotion, setSelectedEmotion] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPromptSuggestions, setShowPromptSuggestions] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isEmotionScanning, setIsEmotionScanning] = useState(false);
+  const [detectedEmotion, setDetectedEmotion] = useState<string>('');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [emotionAnalysis, setEmotionAnalysis] = useState<{
+    emotion: string;
+    confidence: number;
+    all_emotions: { [key: string]: number };
+    method: string;
+  } | null>(null);
+
+  useEffect(() => {
+    console.log("Gemini Debug: Detected emotion state updated:", detectedEmotion);
+    console.log("Gemini Debug: Emotion analysis state updated:", emotionAnalysis);
+  }, [detectedEmotion, emotionAnalysis]);
 
   const emotions = [
     'serene', 'melancholic', 'joyful', 'contemplative', 'nostalgic',
@@ -80,9 +97,10 @@ export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
     setTimeout(() => {
       let haiku: Haiku;
       const promptToUse = customPrompt || imagePrompt || '';
+      const emotionToUse = detectedEmotion || selectedEmotion;
       
-      if (selectedEmotion) {
-        haiku = HaikuService.generateEmotionalHaiku(selectedEmotion);
+      if (emotionToUse) {
+        haiku = HaikuService.generateEmotionalHaiku(emotionToUse);
       } else if (promptToUse) {
         haiku = HaikuService.generateHaiku(promptToUse);
       } else {
@@ -110,6 +128,7 @@ export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
     if (currentHaiku) {
       const haikuText = currentHaiku.lines.join('\n');
       navigator.clipboard.writeText(haikuText);
+      // You could add a toast notification here
     }
   };
 
@@ -144,8 +163,91 @@ export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
     return colors[emotion as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
 
+  const getDetectedEmotionColor = (emotion: string) => {
+    const colors = {
+      happy: 'bg-green-100 text-green-800 border-green-200',
+      sad: 'bg-blue-100 text-blue-800 border-blue-200',
+      angry: 'bg-red-100 text-red-800 border-red-200',
+      surprise: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      neutral: 'bg-gray-100 text-gray-800 border-gray-200',
+      fear: 'bg-purple-100 text-purple-800 border-purple-200',
+      disgust: 'bg-orange-100 text-orange-800 border-orange-200'
+    };
+    return colors[emotion as keyof typeof colors] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  const handleQRCodeDetected = (data: string) => {
+    setCustomPrompt(data);
+    setIsScanning(false);
+  };
+
+  const handleFaceEmotionDetected = (emotion: string, analysis?: any) => {
+    console.log("Gemini Debug: handleFaceEmotionDetected called with:", { emotion, analysis });
+    setDetectedEmotion(emotion);
+    
+    // Store detailed emotion analysis
+    if (analysis) {
+      setEmotionAnalysis(analysis);
+    }
+    
+    // Map detected emotions to haiku emotions
+    const emotionMap: { [key: string]: string } = {
+      'happy': 'joyful',
+      'sad': 'melancholic',
+      'angry': 'mysterious',
+      'surprise': 'hopeful',
+      'neutral': 'serene',
+      'fear': 'wistful',
+      'disgust': 'contemplative'
+    };
+    
+    setSelectedEmotion(emotionMap[emotion] || 'serene');
+    setIsEmotionScanning(false);
+  };
+
+  // Add this function to handle emotion data from camera
+  const handleCameraData = (data: string) => {
+    // Check if data is an emotion (from face detection)
+    const emotions = ['happy', 'sad', 'angry', 'surprise', 'neutral', 'fear', 'disgust'];
+    if (emotions.includes(data.toLowerCase())) {
+      handleFaceEmotionDetected(data.toLowerCase());
+    } else {
+      // Assume it's QR code data
+      handleQRCodeDetected(data);
+    }
+    setIsScanning(false);
+  };
+
+  const clearDetectedEmotion = () => {
+    setDetectedEmotion('');
+    setSelectedEmotion('');
+    setEmotionAnalysis(null);
+  };
+
+  const EmotionBar = ({ emotion, score }: { emotion: string; score: number }) => (
+    <div className="flex items-center justify-between gap-2 mb-2">
+      <span className="capitalize text-sm text-gray-700 w-20">{emotion}:</span>
+      <div className="flex-1 bg-gray-200 rounded-full h-3">
+        <div
+          className="h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+          style={{ width: `${score}%` }}
+        ></div>
+      </div>
+      <span className="text-sm text-gray-600 w-10 text-right">{score.toFixed(1)}%</span>
+    </div>
+  );
+
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
+      
+      
+      <EmotionCamera 
+        isScanning={isEmotionScanning}
+        onClose={() => setIsEmotionScanning(false)}
+        onEmotionDetected={handleFaceEmotionDetected}
+        cameraError={cameraError}
+      />
+      
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
         <div className="text-center space-y-4">
           <div className="flex items-center justify-center gap-2 mb-4">
@@ -155,6 +257,71 @@ export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
             <h3 className="text-lg font-semibold text-gray-800">Haiku Generator</h3>
           </div>
 
+          {/* Detected Emotion Display */}
+          {detectedEmotion && emotionAnalysis && (
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-blue-800">
+                  <MdEmojiEmotions className="text-blue-600 text-lg" />
+                  <span className="text-lg">Emotion Detected!</span>
+                </div>
+                <button
+                  onClick={clearDetectedEmotion}
+                  className="text-xs text-red-600 hover:text-red-800 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+              
+              {/* Main Emotion Display */}
+              <div className="text-center mb-4">
+                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-lg font-bold border-2 ${getDetectedEmotionColor(detectedEmotion)}`}>
+                  <span className="text-2xl">
+                    {detectedEmotion === 'happy' && '😊'}
+                    {detectedEmotion === 'sad' && '😢'}
+                    {detectedEmotion === 'angry' && '😠'}
+                    {detectedEmotion === 'surprise' && '😲'}
+                    {detectedEmotion === 'neutral' && '😐'}
+                    {detectedEmotion === 'fear' && '😨'}
+                    {detectedEmotion === 'disgust' && '🤢'}
+                  </span>
+                  <span className="capitalize">{detectedEmotion}</span>
+                  <span className="text-sm font-normal text-gray-600">
+                    ({emotionAnalysis.confidence.toFixed(1)}% confidence)
+                  </span>
+                </div>
+              </div>
+
+              {/* All Emotions Breakdown */}
+              <div className="bg-white rounded-lg p-3 border border-blue-100">
+                <h4 className="text-sm font-semibold text-gray-800 mb-3 text-center">
+                  Emotion Analysis
+                </h4>
+                <div className="space-y-1">
+                  {Object.entries(emotionAnalysis.all_emotions)
+                    .sort(([,a], [,b]) => b - a)
+                    .map(([emotion, score]) => (
+                      <EmotionBar key={emotion} emotion={emotion} score={score} />
+                    ))
+                  }
+                </div>
+                <div className="text-xs text-gray-500 text-center mt-2">
+                  Using {emotionAnalysis.method} analysis
+                </div>
+              </div>
+
+              {/* Mapped Haiku Emotion */}
+              <div className="mt-3 text-center">
+                <div className="text-sm text-gray-600">
+                  Mapped to haiku emotion:{' '}
+                  <span className={`font-semibold ${getEmotionColor(selectedEmotion)} px-2 py-1 rounded-full`}>
+                    {selectedEmotion}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Custom Prompt Input */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">Haiku Inspiration (Optional)</label>
@@ -163,17 +330,35 @@ export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
                 placeholder="Enter a theme, feeling, or scene for your haiku... (e.g., 'cherry blossoms falling in spring breeze')"
-                className="w-full px-3 py-2 pr-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm resize-none"
+                className="w-full px-3 py-2 pr-24 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm resize-none"
                 rows={2}
               />
-              <button
-                type="button"
-                onClick={handleRandomPrompt}
-                className="absolute right-2 top-2 p-1 text-gray-400 hover:text-purple-600 transition-colors"
-                title="Random prompt"
-              >
-                <Shuffle size={16} />
-              </button>
+              <div className="absolute right-2 top-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIsScanning(true)}
+                  className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
+                  title="Scan QR code"
+                >
+                  <Camera size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEmotionScanning(true)}
+                  className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
+                  title="Detect face emotion"
+                >
+                  <MdEmojiEmotions size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRandomPrompt}
+                  className="p-1 text-gray-400 hover:text-purple-600 transition-colors"
+                  title="Random prompt"
+                >
+                  <Shuffle size={16} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -246,7 +431,6 @@ export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
           {currentHaiku && (
             <div className="mt-6 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
               <div className="space-y-3">
-                
                 <div className="text-center space-y-1">
                   {currentHaiku.lines.map((line, index) => (
                     <p key={index} className="text-gray-800 font-medium italic text-lg">
@@ -254,6 +438,14 @@ export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
                     </p>
                   ))}
                 </div>
+
+                {currentHaiku.emotion && (
+                  <div className="text-center">
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getEmotionColor(currentHaiku.emotion)}`}>
+                      {currentHaiku.emotion}
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex justify-center gap-2 pt-2">
                   <button
@@ -281,8 +473,6 @@ export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
               </div>
             </div>
           )}
-
-          {/* Art Card Generator */}
         </div>
       </div>
 
@@ -311,6 +501,39 @@ export const HaikuGenerator: React.FC<HaikuGeneratorProps> = ({
           <p><strong>Emotions:</strong> "longing for home", "peaceful solitude", "childhood memories"</p>
           <p><strong>Moments:</strong> "old man feeding birds", "lovers under moonlight", "child's first snow"</p>
           <p><strong>Seasons:</strong> "spring rain on roof", "summer cicadas singing", "winter silence"</p>
+        </div>
+      </div>
+
+      {/* Camera Features Info */}
+      <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl border border-orange-200 p-4">
+        <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+          <Camera size={16} className="text-orange-600" />
+          Camera Features
+        </h4>
+        <div className="text-xs text-gray-700 space-y-2">
+          <p><strong>QR Code Scanning:</strong> Scan QR codes to get haiku prompts automatically</p>
+          <p><strong>Face Emotion Detection:</strong> Point camera at your face to detect emotions and generate matching haikus</p>
+          <p><strong>Real-time Analysis:</strong> Get instant emotion detection with confidence scores</p>
+          <div className="mt-2 text-xs text-orange-600">
+            <strong>Note:</strong> Make sure the Flask backend is running on port 5000 for emotion detection
+          </div>
+        </div>
+      </div>
+
+      {/* Emotion Mapping Info */}
+      <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200 p-4">
+        <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+          <MdEmojiEmotions className="text-purple-600" />
+          Emotion Mapping
+        </h4>
+        <div className="text-xs text-gray-700 grid grid-cols-2 gap-1">
+          <div><strong>Happy</strong> → Joyful</div>
+          <div><strong>Sad</strong> → Melancholic</div>
+          <div><strong>Angry</strong> → Mysterious</div>
+          <div><strong>Surprise</strong> → Hopeful</div>
+          <div><strong>Neutral</strong> → Serene</div>
+          <div><strong>Fear</strong> → Wistful</div>
+          <div><strong>Disgust</strong> → Contemplative</div>
         </div>
       </div>
     </div>

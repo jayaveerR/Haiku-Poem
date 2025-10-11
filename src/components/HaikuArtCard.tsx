@@ -97,7 +97,7 @@ export const HaikuArtCard: React.FC<HaikuArtCardProps> = ({ haiku, onGenerate })
   return (
     <div className="w-full space-y-6">
       {/* Controls */}
-      <div className="flex flex-wrap justify-center gap-3 mb-6">
+      <div className="flex flex-wrap justify-center gap-3 mb-">
         {/* Download Options */}
         <button
           onClick={downloadHaikuText}

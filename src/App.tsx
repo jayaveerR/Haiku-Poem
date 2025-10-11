@@ -9,6 +9,7 @@ import { Gallery } from "./components/Gallery";
 import { HaikuGenerator } from "./components/HaikuGenerator";
 import { AIService } from "./services/aiService";
 import { GeneratedImage, Haiku } from "./types";
+import ScanningCamera from "./components/ScanningCamera";
 
 function App() {
   const [images, setImages] = useState<GeneratedImage[]>([]);
@@ -17,6 +18,8 @@ function App() {
   const [currentPrompt, setCurrentPrompt] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("realistic");
   const [activeTab, setActiveTab] = useState<"images" | "haiku">("images");
+  const [isScanning, setIsScanning] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const handleGenerate = async (prompt: string) => {
     setIsLoading(true);
@@ -55,6 +58,11 @@ function App() {
     if (currentPrompt) {
       handleGenerate(currentPrompt);
     }
+  };
+
+  const handleQRCodeDetected = (data: string) => {
+    console.log("QR Code Detected:", data);
+    setIsScanning(false);
   };
 
   return (
@@ -96,7 +104,7 @@ function App() {
             >
               🌸 Haiku Generator
             </button>
-          </div>
+           </div>
         </div>
 
         {activeTab === "images" ? (
@@ -146,10 +154,10 @@ function App() {
             </div>
 
             {/* Two Column Layout */}
-            <div className="grid grid-cols-1 ">
+            <div className="w-full md:w-1/10 ">
               {/* Left Side - Haiku Generator */}
               <div className="space-y-6 flex justify-center">
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-purple-200 p-6 animate-slideInLeft hover:shadow-2xl transition-all duration-500 hover:scale-105 max-w-md w-full">
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-purple-200 p-9 animate-slideInLeft hover:shadow-2xl transition-all duration-500 hover:scale-105  w-full">
                   <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                     <span className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center animate-bounce-slow">
                       ✨
@@ -247,6 +255,12 @@ function App() {
           </div>
         </div>
       </footer>
+      <ScanningCamera
+        isScanning={isScanning}
+        onClose={() => setIsScanning(false)}
+        onQRCodeDetected={handleQRCodeDetected}
+        cameraError={cameraError}
+      />
     </div>
   );
 }
