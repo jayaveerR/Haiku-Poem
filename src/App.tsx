@@ -9,7 +9,7 @@ import { Gallery } from "./components/Gallery";
 import { HaikuGenerator } from "./components/HaikuGenerator";
 import { AIService } from "./services/aiService";
 import { GeneratedImage, Haiku } from "./types";
-import ScanningCamera from "./components/ScanningCamera";
+
 
 function App() {
   const [images, setImages] = useState<GeneratedImage[]>([]);
@@ -255,12 +255,7 @@ function App() {
           </div>
         </div>
       </footer>
-      <ScanningCamera
-        isScanning={isScanning}
-        onClose={() => setIsScanning(false)}
-        onQRCodeDetected={handleQRCodeDetected}
-        cameraError={cameraError}
-      />
+      
     </div>
   );
 }
